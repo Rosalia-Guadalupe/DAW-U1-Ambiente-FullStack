@@ -1,231 +1,477 @@
-```vue
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import ServiceCard from '../components/ServiceCard.vue'
-import { obtenerServicios } from '../services/api'
+import {computed, onMounted, ref} from 'vue'
+
+// ETAPA 29: Importar la API de servicios
+import {listarServicios} from '../services/servicesApi'
 
 const servicios = ref([])
-const busqueda = ref('')
-const cargando = ref(true)
+const loading = ref(false)
 const error = ref('')
+const busqueda = ref('')
 
+// ETAPA 29: Cargar servicios
+async function cargarServicios() {
+  loading.value = true
+  error.value = ''
+
+  try {
+    servicios.value = await listarServicios()
+  } catch (e) {
+    error.value = e.message || 'No fue posible consultar los servicios'
+  } finally {
+    loading.value = false
+  }
+}
+
+// ETAPA 29: Buscar por nombre y descripción
 const serviciosFiltrados = computed(() => {
   const texto = busqueda.value.trim().toLowerCase()
 
-  return servicios.value.filter(servicio =>
-    servicio.nombre.toLowerCase().includes(texto)
-  )
+  if (!texto) {
+    return servicios.value
+  }
+
+  return servicios.value.filter(servicio => {
+    const nombre = servicio.nombre?.toLowerCase() ?? ''
+    const descripcion = servicio.descripcion?.toLowerCase() ?? ''
+
+    return nombre.includes(texto) || descripcion.includes(texto)
+  })
 })
 
-onMounted(async () => {
-  try {
-    servicios.value = await obtenerServicios()
-  } catch (e) {
-    error.value = e.message
-  } finally {
-    cargando.value = false
+// ETAPA 29: Formatear precios
+function formatearPrecio(precio) {
+  const numero = Number(precio)
+
+  if (Number.isNaN(numero)) {
+    return '$0.00'
   }
-})
+
+  return numero.toLocaleString('es-MX', {
+    style: 'currency',
+    currency: 'MXN'
+  })
+}
+
+// ETAPA 29: Formatear duración
+function formatearDuracion(minutos) {
+  const total = Number(minutos)
+
+  if (Number.isNaN(total)) {
+    return ''
+  }
+
+  if (total < 60) {
+    return `${total} min`
+  }
+
+  const horas = Math.floor(total / 60)
+  const restantes = total % 60
+
+  if (restantes === 0) {
+    return horas === 1 ? '1 hora' : `${horas} horas`
+  }
+
+  return `${horas} h ${restantes} min`
+}
+
+// ETAPA 29: Cargar al entrar a la vista
+onMounted(cargarServicios)
 </script>
 
 <template>
   <section class="services-page">
-    <header class="services-heading">
-      <div class="services-title">
-        <span class="services-tag">CATÁLOGO</span>
-        <h2>Servicios disponibles</h2>
+
+    <header class="services-hero">
+      <div class="hero-content">
+        <span class="hero-tag">
+          Catálogo
+        </span>
+
+        <h1>Nuestros servicios</h1>
+
         <p>
-          Explora nuestros servicios y encuentra la opción que necesitas.
+          Consulta los servicios disponibles
+          y encuentra la opción que mejor se
+          adapte a tus necesidades.
         </p>
       </div>
+    </header>
 
-      <label class="services-search">
+    <section class="services-toolbar">
+      <label class="search-box">
         <span>Buscar servicio</span>
+
         <input
           v-model="busqueda"
           type="search"
-          placeholder="Ej. Desarrollo Web"
+          placeholder="Buscar por nombre o descripción..."
         >
       </label>
-    </header>
 
-    <div class="services-summary">
-      <span>Catálogo de servicios</span>
-      <span v-if="!cargando && !error">
-        {{ serviciosFiltrados.length }}
-        {{ serviciosFiltrados.length === 1 ? 'servicio' : 'servicios' }}
-      </span>
+      <div class="services-counter">
+        Servicios disponibles:
+        <strong>
+          {{ serviciosFiltrados.length }}
+        </strong>
+      </div>
+    </section>
+
+    <!-- ETAPA 29: Estado de carga -->
+    <div v-if="loading" class="state-box">
+      <div class="loader"></div>
+      <p>Consultando servicios...</p>
     </div>
 
-    <div
-      v-if="cargando"
-      class="services-message"
-      aria-live="polite"
-    >
-      <p>Cargando información...</p>
-    </div>
-
+    <!-- ETAPA 29: Mostrar errores -->
     <div
       v-else-if="error"
-      class="services-message services-error"
+      class="state-box error-box"
       role="alert"
     >
-      <h3>No se pudieron cargar los servicios</h3>
+      <h2>No fue posible cargar los servicios</h2>
       <p>{{ error }}</p>
+
+      <button
+        type="button"
+        class="btn-retry"
+        @click="cargarServicios"
+      >
+        Intentar nuevamente
+      </button>
     </div>
 
+    <!-- NUEVO - ETAPA 29: Catálogo vacío -->
     <div
       v-else-if="serviciosFiltrados.length === 0"
-      class="services-message"
+      class="state-box"
     >
-      <h3>No se encontraron servicios</h3>
-      <p>Prueba con otro nombre en el buscador.</p>
+      <h2>No existen servicios disponibles</h2>
+
+      <p v-if="busqueda">
+        No se encontraron resultados para "{{ busqueda }}".
+      </p>
+
+      <p v-else>
+        Actualmente no hay servicios activos.
+      </p>
     </div>
 
-    <div
-      v-else
-      class="services-grid"
-    >
-      <ServiceCard
+    <!-- ETAPA 29: Mostrar tarjetas -->
+    <div v-else class="services-grid">
+      <article
         v-for="servicio in serviciosFiltrados"
         :key="servicio.id"
-        :servicio="servicio"
-      />
+        class="service-card"
+      >
+        <div class="service-card-header">
+          <div class="service-icon">
+            ⚙
+          </div>
+
+          <span class="status-badge">
+            Disponible
+          </span>
+        </div>
+
+        <div class="service-card-body">
+          <h2>{{ servicio.nombre }}</h2>
+
+          <p class="service-description">
+            {{ servicio.descripcion }}
+          </p>
+
+          <div class="service-details">
+            <div>
+              <span class="detail-label">Precio</span>
+
+              <strong class="service-price">
+                {{ formatearPrecio(servicio.precio) }}
+              </strong>
+            </div>
+
+            <div>
+              <span class="detail-label">Duración</span>
+
+              <strong>
+                {{ formatearDuracion(servicio.duracion_minutos) }}
+              </strong>
+            </div>
+          </div>
+        </div>
+
+        <footer class="service-card-footer">
+          <button
+            type="button"
+            class="btn-service"
+            disabled
+          >
+            Contratación en siguiente etapa
+          </button>
+        </footer>
+      </article>
     </div>
+
   </section>
 </template>
 
 <style scoped>
 .services-page {
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 32px 24px;
+  display: grid;
+  gap: 1.75rem;
 }
 
-.services-heading {
+.services-hero {
+  position: relative;
+  overflow: hidden;
+  padding: 3rem 2.5rem;
+  border-radius: 1.5rem;
+  color: white;
+  background: linear-gradient(
+    135deg,
+    #312e81,
+    #4f46e5 50%,
+    #0891b2
+  );
+}
+
+.services-hero::after {
+  content: '';
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  right: -70px;
+  top: -100px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.hero-content {
+  position: relative;
+  z-index: 1;
+  max-width: 650px;
+}
+
+.hero-tag {
+  display: inline-block;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.services-hero h1 {
+  margin: 0.7rem 0 0.5rem;
+  font-size: clamp(2rem, 5vw, 3.2rem);
+}
+
+.services-hero p {
+  margin: 0;
+  max-width: 580px;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.services-toolbar {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: 24px;
-  margin-bottom: 32px;
+  gap: 1rem;
+  padding: 1.25rem;
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
 }
 
-.services-tag {
-  display: inline-block;
-  margin-bottom: 10px;
-  color: #2563eb;
-  font-size: 12px;
-  font-weight: 800;
-  letter-spacing: 1.5px;
-}
-
-.services-title h2 {
-  margin: 0 0 10px;
-  font-size: clamp(26px, 4vw, 36px);
-  line-height: 1.2;
-}
-
-.services-title p {
-  margin: 0;
-  color: #64748b;
-  line-height: 1.6;
-}
-
-.services-search {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  width: min(100%, 300px);
-  font-size: 14px;
+.search-box {
+  display: grid;
+  gap: 0.4rem;
+  width: min(480px, 100%);
+  color: #334155;
   font-weight: 600;
 }
 
-.services-search input {
+.search-box input {
   width: 100%;
-  padding: 12px 14px;
+  box-sizing: border-box;
+  padding: 0.8rem 1rem;
   border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  background: #ffffff;
-  color: #0f172a;
+  border-radius: 0.65rem;
   font: inherit;
-  outline: none;
 }
 
-.services-search input:focus {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgb(37 99 235 / 15%);
+.search-box input:focus {
+  outline: 3px solid rgba(79, 70, 229, 0.15);
+  border-color: #6366f1;
 }
 
-.services-summary {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 18px;
-  padding-bottom: 14px;
-  border-bottom: 1px solid #e2e8f0;
+.services-counter {
   color: #64748b;
-  font-size: 14px;
-}
-
-.services-summary span:last-child {
-  font-weight: 700;
-  color: #334155;
 }
 
 .services-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr));
-  gap: 22px;
-  align-items: stretch;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 1.3rem;
 }
 
-.services-message {
-  padding: 32px 20px;
+.service-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 330px;
   border: 1px solid #e2e8f0;
-  border-radius: 14px;
-  background: #f8fafc;
-  text-align: center;
+  border-radius: 1.2rem;
+  background: white;
+  box-shadow: 0 8px 25px rgba(15, 23, 42, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.services-message h3 {
-  margin: 0 0 8px;
+.service-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 35px rgba(15, 23, 42, 0.12);
 }
 
-.services-message p {
+.service-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.2rem 1.2rem 0;
+}
+
+.service-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 0.8rem;
+  color: white;
+  font-size: 1.3rem;
+  background: linear-gradient(135deg, #4f46e5, #0891b2);
+}
+
+.status-badge {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  color: #166534;
+  background: #dcfce7;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.service-card-body {
+  flex: 1;
+  padding: 1.25rem;
+}
+
+.service-card-body h2 {
+  margin: 0 0 0.7rem;
+  color: #0f172a;
+  font-size: 1.3rem;
+}
+
+.service-description {
+  min-height: 70px;
   margin: 0;
   color: #64748b;
-  overflow-wrap: anywhere;
+  line-height: 1.55;
 }
 
-.services-error {
-  border-color: #fecaca;
-  background: #fef2f2;
+.service-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+  margin-top: 1.4rem;
+  padding-top: 1.1rem;
+  border-top: 1px solid #e2e8f0;
+}
+
+.service-details > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.detail-label {
+  color: #94a3b8;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.service-price {
+  color: #4f46e5;
+  font-size: 1.1rem;
+}
+
+.service-card-footer {
+  padding: 0 1.25rem 1.25rem;
+}
+
+.btn-service {
+  width: 100%;
+  padding: 0.75rem;
+  border: 0;
+  border-radius: 0.65rem;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  cursor: not-allowed;
+}
+
+.state-box {
+  display: grid;
+  place-items: center;
+  gap: 0.75rem;
+  min-height: 220px;
+  padding: 2rem;
+  text-align: center;
+  border-radius: 1rem;
+  background: white;
+  box-shadow: 0 10px 30px rgba(15, 23, 42, 0.07);
+}
+
+.state-box h2,
+.state-box p {
+  margin: 0;
+}
+
+.error-box {
   color: #991b1b;
 }
 
-.services-error p {
-  color: #991b1b;
+.btn-retry {
+  padding: 0.65rem 1rem;
+  border: 0;
+  border-radius: 0.6rem;
+  color: white;
+  background: #4f46e5;
+  cursor: pointer;
 }
 
-@media (max-width: 650px) {
-  .services-page {
-    padding: 24px 16px;
+.loader {
+  width: 38px;
+  height: 38px;
+  border: 4px solid #e2e8f0;
+  border-top-color: #4f46e5;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (max-width: 700px) {
+  .services-hero {
+    padding: 2rem 1.5rem;
   }
 
-  .services-heading {
+  .services-toolbar {
     align-items: stretch;
     flex-direction: column;
-    gap: 20px;
-  }
-
-  .services-search {
-    width: 100%;
-  }
-
-  .services-grid {
-    grid-template-columns: 1fr;
   }
 }
 </style>
-```

@@ -1,3 +1,4 @@
+
 <script setup>
 import {useRouter} from 'vue-router'
 import {useAuth} from '../services/auth'
@@ -27,6 +28,24 @@ async function cerrarSesion() {
       <RouterLink to="/dashboard">
         Dashboard
       </RouterLink>
+
+      <!-- ETAPA 26: Mostrar suarios solo administrador  -->
+      <RouterLink
+        v-if="user?.rol === 'ADMIN_SISTEMA'"
+        to="/usuarios"
+      >
+        Usuarios
+      </RouterLink>
+
+      <!-- ETAPA 26: Administración de servicios -->
+      <RouterLink
+        v-if="user?.rol === 'ADMIN_SISTEMA' || user?.rol === 'ADMIN_SERVICIOS'"
+        to="/servicios/admin"
+      >
+        Administrar servicios
+      </RouterLink>
+
+      <!-- Todos pueden tener -->
       <RouterLink to="/servicios">
         Servicios
       </RouterLink>
